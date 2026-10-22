@@ -46,6 +46,11 @@ public class GitPktLineParser {
                 continue;
             }
 
+            // Strip literal "\n0000" or "\n" if typed literally in test tools
+            if (line.contains("\\n")) {
+                line = line.substring(0, line.indexOf("\\n")).trim();
+            }
+
             // The very first line may contain capabilities separated by \0 (null byte)
             // Example: "0000... <new-oid> refs/heads/main\0report-status side-band-64k"
             int nullIdx = line.indexOf('\0');
@@ -60,12 +65,12 @@ public class GitPktLineParser {
                 }
             }
 
-            String[] parts = commandPart.split(" ");
+            String[] parts = commandPart.trim().split("\\s+");
             if (parts.length >= 3) {
                 commands.add(RefCommand.builder()
-                        .oldOid(parts[0])
-                        .newOid(parts[1])
-                        .refName(parts[2])
+                        .oldOid(parts[0].trim())
+                        .newOid(parts[1].trim())
+                        .refName(parts[2].trim())
                         .build());
             }
         }
@@ -114,12 +119,32 @@ public class GitPktLineParser {
                 throw new IOException("Corrupted Git pkt-line length: " + len);
             }
 
+            // Read the payload specified by hex length
             byte[] payload = in.readNBytes(len - 4);
             if (payload.length < (len - 4)) {
                 throw new EOFException("Premature EOF reading Git pkt-line payload of len " + len);
             }
-            recorder.write(payload);
-            return payload;
+
+            // If manual test entered a line longer than the hex prefix, read the rest of the line until \n
+            ByteArrayOutputStream completeLine = new ByteArrayOutputStream();
+            completeLine.write(payload);
+            String payloadStr = new String(payload, StandardCharsets.UTF_8);
+            if (!payloadStr.endsWith("\n") && !payloadStr.endsWith("\r")) {
+                int extra;
+                while ((extra = in.read()) != -1) {
+                    if (extra == '\n') {
+                        break;
+                    }
+                    if (extra == '\r') {
+                        continue;
+                    }
+                    completeLine.write(extra);
+                }
+            }
+
+            byte[] finalPayload = completeLine.toByteArray();
+            recorder.write(finalPayload);
+            return finalPayload;
         }
 
         // Fallback for manual test tools (like Postman sending un-prefixed lines or line without exact hex count):
