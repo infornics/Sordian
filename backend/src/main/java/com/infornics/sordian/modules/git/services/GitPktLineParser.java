@@ -75,17 +75,37 @@ public class GitPktLineParser {
 
     private byte[] readPktLine(InputStream in, ByteArrayOutputStream recorder) throws IOException {
         byte[] lenBytes = in.readNBytes(4);
+        if (lenBytes.length == 0) {
+            return null;
+        }
         if (lenBytes.length < 4) {
             throw new EOFException("Premature EOF while reading Git pkt-line length");
         }
-        recorder.write(lenBytes);
 
         String lenHex = new String(lenBytes, StandardCharsets.UTF_8);
+
+        // If a test tool sent raw text with literal "\n" or newline between packets, skip leading newlines
+        while (lenHex.startsWith("\n") || lenHex.startsWith("\r")) {
+            in.mark(4);
+            int next = in.read();
+            if (next == -1) {
+                return null;
+            }
+            byte[] rest = in.readNBytes(3);
+            byte[] reassembled = new byte[4];
+            reassembled[0] = (byte) next;
+            System.arraycopy(rest, 0, reassembled, 1, rest.length);
+            lenHex = new String(reassembled, StandardCharsets.UTF_8);
+            lenBytes = reassembled;
+        }
+
+        recorder.write(lenBytes);
+
         int len;
         try {
-            len = Integer.parseInt(lenHex, 16);
+            len = Integer.parseInt(lenHex.trim(), 16);
         } catch (NumberFormatException e) {
-            throw new IOException("Invalid Git pkt-line length prefix: " + lenHex, e);
+            throw new IOException("Invalid Git pkt-line length prefix: '" + lenHex + "'", e);
         }
 
         if (len == 0) {
