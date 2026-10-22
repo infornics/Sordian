@@ -28,20 +28,15 @@ public class GitInspectionService {
      * - Returns false if oldOid is not an ancestor of newOid (force-push / history rewrite).
      */
     public boolean isFastForward(File repoDir, RefCommand command) {
-        // New branch creation (oldOid is all zeros) is always allowed as fast-forward
         if (command.isCreate()) {
             return true;
         }
 
-        // Branch deletion (newOid is all zeros) is handled separately
         if (command.isDelete()) {
             return false;
         }
 
         try {
-            // git merge-base --is-ancestor <old-oid> <new-oid>
-            // Exit code 0 means old-oid is an ancestor of new-oid (Fast-Forward: PASS)
-            // Exit code 1 means old-oid is NOT an ancestor (Force-push / Diverged: REJECT)
             List<String> args = List.of(
                     "merge-base",
                     "--is-ancestor",
@@ -63,5 +58,36 @@ public class GitInspectionService {
                     command.getRefName(), command.getOldOid(), command.getNewOid(), e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Inspects a list of proposed ref updates against Git invariants:
+     * 1. Reject branch deletions (FR-10).
+     * 2. Reject non-fast-forward updates / force-pushes (FR-09 & FR-15).
+     */
+    public com.infornics.sordian.modules.git.models.PushValidationResult validatePushCommands(
+            File repoDir,
+            List<RefCommand> commands) {
+
+        for (RefCommand command : commands) {
+            if (command.isDelete()) {
+                log.warn("Rejected branch deletion attempt on ref {}", command.getRefName());
+                return com.infornics.sordian.modules.git.models.PushValidationResult.reject(
+                        "Branch deletion is denied by default to prevent history reset.",
+                        command
+                );
+            }
+
+            if (!isFastForward(repoDir, command)) {
+                log.warn("Rejected non-fast-forward update on ref {} ({} -> {})",
+                        command.getRefName(), command.getOldOid(), command.getNewOid());
+                return com.infornics.sordian.modules.git.models.PushValidationResult.reject(
+                        "Non-fast-forward updates are strictly prohibited. Rewriting history is forbidden.",
+                        command
+                );
+            }
+        }
+
+        return com.infornics.sordian.modules.git.models.PushValidationResult.allow();
     }
 }

@@ -40,6 +40,8 @@ public class GitSmartHttpController {
 
     private final GitQuarantineService quarantineService;
     private final GitProcessRunner gitRunner;
+    private final com.infornics.sordian.modules.git.services.GitPktLineParser pktLineParser;
+    private final com.infornics.sordian.modules.git.services.GitInspectionService inspectionService;
 
     /**
      * Git Smart HTTP ref advertisement for git-receive-pack.
@@ -85,7 +87,7 @@ public class GitSmartHttpController {
     }
 
     /**
-     * Git Smart HTTP receive-pack endpoint for receiving packfiles.
+     * Git Smart HTTP receive-pack endpoint for inspecting commands and receiving packfiles.
      */
     @PostMapping("/git-receive-pack")
     public void receivePack(
@@ -103,6 +105,37 @@ public class GitSmartHttpController {
 
         OutputStream responseOut = response.getOutputStream();
 
+        // Step 1.3: Parse incoming ref commands before forwarding
+        java.io.InputStream in = request.getInputStream();
+        com.infornics.sordian.modules.git.services.GitPktLineParser.ParseResult parseResult =
+                pktLineParser.parsePushCommands(in);
+
+        List<com.infornics.sordian.modules.git.models.RefCommand> commands = parseResult.getCommands();
+
+        // Empty flush push (test probes)
+        if (commands.isEmpty()) {
+            writePktFlush(responseOut);
+            responseOut.flush();
+            return;
+        }
+
+        // Validate proposed ref updates
+        com.infornics.sordian.modules.git.models.PushValidationResult validation =
+                inspectionService.validatePushCommands(repoDir, commands);
+
+        if (!validation.isAllowed()) {
+            log.info("Push rejected for {}/{}: {}", org, repo, validation.getRejectionReason());
+            sendGitRejection(responseOut, validation, commands);
+            responseOut.flush();
+            return;
+        }
+
+        // Permitted: reconstruct stream (preamble bytes + remaining packfile) and stream into receive-pack
+        java.io.SequenceInputStream combinedIn = new java.io.SequenceInputStream(
+                new java.io.ByteArrayInputStream(parseResult.getRawPreamble()),
+                in
+        );
+
         List<String> commandArgs = List.of(
                 "receive-pack",
                 "--stateless-rpc",
@@ -113,12 +146,31 @@ public class GitSmartHttpController {
                 repoDir,
                 commandArgs,
                 Map.of(),
-                request.getInputStream(),
+                combinedIn,
                 responseOut
         );
 
         responseOut.flush();
         log.debug("Completed git-receive-pack for {}/{} with exit code {}", org, repo, exitCode);
+    }
+
+    private void sendGitRejection(
+            OutputStream out,
+            com.infornics.sordian.modules.git.models.PushValidationResult validation,
+            List<com.infornics.sordian.modules.git.models.RefCommand> commands) throws IOException {
+
+        // Report status to Git client according to Git receive-pack wire protocol
+        // 1. Unpack status
+        writePktLine(out, "unpack ok\n");
+
+        // 2. NG per ref status
+        for (com.infornics.sordian.modules.git.models.RefCommand cmd : commands) {
+            String errorMsg = validation.getRejectionReason();
+            writePktLine(out, "ng " + cmd.getRefName() + " [SORDIAN REJECTED] " + errorMsg + "\n");
+        }
+
+        // 3. Flush packet to conclude report-status
+        writePktFlush(out);
     }
 
     private void writePktLine(OutputStream out, String text) throws IOException {

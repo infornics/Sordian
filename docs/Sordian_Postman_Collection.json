@@ -1,0 +1,180 @@
+{
+  "info": {
+    "_postman_id": "sordian-git-gateway-collection",
+    "name": "Sordian API",
+    "description": "API collection for Sordian - Git write-path governance proxy and PR merge policy coordinator.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "localBaseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "org",
+      "value": "infornics",
+      "type": "string"
+    },
+    {
+      "key": "repo",
+      "value": "Sordian",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01. Git Smart HTTP Transport",
+      "description": "Step 1.1 - Endpoints implementing the Git Smart HTTP transfer protocol (RFC / Git Documentation).",
+      "item": [
+        {
+          "name": "01 - Advertise Refs (Push Handshake - git-receive-pack)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "*/*"
+              },
+              {
+                "key": "User-Agent",
+                "value": "git/2.43.0"
+              }
+            ],
+            "url": {
+              "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/info/refs?service=git-receive-pack",
+              "host": ["{{localBaseUrl}}"],
+              "path": ["{{org}}", "{{repo}}.git", "info", "refs"],
+              "query": [
+                {
+                  "key": "service",
+                  "value": "git-receive-pack",
+                  "description": "Tells Sordian this is a push operation."
+                }
+              ]
+            },
+            "description": "Fetches Git ref advertisement for pushes. Returns 200 OK with 'application/x-git-receive-pack-advertisement'."
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Reject Non-Push Services (Security Boundary - git-upload-pack)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "*/*"
+              },
+              {
+                "key": "User-Agent",
+                "value": "git/2.43.0"
+              }
+            ],
+            "url": {
+              "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/info/refs?service=git-upload-pack",
+              "host": ["{{localBaseUrl}}"],
+              "path": ["{{org}}", "{{repo}}.git", "info", "refs"],
+              "query": [
+                {
+                  "key": "service",
+                  "value": "git-upload-pack",
+                  "description": "Clone/Fetch service request."
+                }
+              ]
+            },
+            "description": "Attempts to clone/fetch through Sordian. Sordian strictly returns 403 Forbidden to ensure developers clone directly from GitHub."
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Receive Pack (Empty Flush Probe)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-git-receive-pack-request"
+              },
+              {
+                "key": "Accept",
+                "value": "application/x-git-receive-pack-result"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "0000"
+            },
+            "url": {
+              "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/git-receive-pack",
+              "host": ["{{localBaseUrl}}"],
+              "path": ["{{org}}", "{{repo}}.git", "git-receive-pack"]
+            },
+            "description": "Probes git-receive-pack endpoint with empty flush pkt-line (0000). Returns 200 OK."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02. Git Ref Inspection & Enforcement",
+      "description": "Steps 1.2 & 1.3 - Intercepting proposed ref updates and rejecting branch deletions & force-pushes in Git wire format.",
+      "item": [
+        {
+          "name": "01 - Reject Branch Deletion Attempt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-git-receive-pack-request"
+              },
+              {
+                "key": "Accept",
+                "value": "application/x-git-receive-pack-result"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "00577a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b 0000000000000000000000000000000000000000 refs/heads/main\n0000"
+            },
+            "url": {
+              "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/git-receive-pack",
+              "host": ["{{localBaseUrl}}"],
+              "path": ["{{org}}", "{{repo}}.git", "git-receive-pack"]
+            },
+            "description": "Simulates 'git push origin --delete main'. Sordian intercepts the all-zeros new-oid, rejects the delete, and returns 'ng refs/heads/main [SORDIAN REJECTED] Branch deletion is denied by default...'."
+          },
+          "response": []
+        },
+        {
+          "name": "02 - Reject Non-Fast-Forward / Force Push Attempt",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-git-receive-pack-request"
+              },
+              {
+                "key": "Accept",
+                "value": "application/x-git-receive-pack-result"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "00571111111111111111111111111111111111111111 2222222222222222222222222222222222222222 refs/heads/feature\n0000"
+            },
+            "url": {
+              "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/git-receive-pack",
+              "host": ["{{localBaseUrl}}"],
+              "path": ["{{org}}", "{{repo}}.git", "git-receive-pack"]
+            },
+            "description": "Simulates a force-push where the old commit is not an ancestor of the new commit. Sordian rejects with 'ng refs/heads/feature [SORDIAN REJECTED] Non-fast-forward updates are strictly prohibited.'."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
