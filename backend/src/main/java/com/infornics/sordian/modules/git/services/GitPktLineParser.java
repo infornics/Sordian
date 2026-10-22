@@ -74,54 +74,78 @@ public class GitPktLineParser {
     }
 
     private byte[] readPktLine(InputStream in, ByteArrayOutputStream recorder) throws IOException {
-        byte[] lenBytes = in.readNBytes(4);
-        if (lenBytes.length == 0) {
-            return null;
-        }
-        if (lenBytes.length < 4) {
-            throw new EOFException("Premature EOF while reading Git pkt-line length");
+        // Read 4 bytes of length prefix
+        byte[] lenBytes = new byte[4];
+        int read = 0;
+        while (read < 4) {
+            int b = in.read();
+            if (b == -1) {
+                if (read == 0) {
+                    return null;
+                }
+                throw new EOFException("Premature EOF while reading Git pkt-line length prefix");
+            }
+            // Skip leading whitespace / newlines between packets
+            if (read == 0 && (b == '\n' || b == '\r')) {
+                continue;
+            }
+            lenBytes[read++] = (byte) b;
         }
 
         String lenHex = new String(lenBytes, StandardCharsets.UTF_8);
 
-        // If a test tool sent raw text with literal "\n" or newline between packets, skip leading newlines
-        while (lenHex.startsWith("\n") || lenHex.startsWith("\r")) {
-            in.mark(4);
-            int next = in.read();
-            if (next == -1) {
+        // Check if length prefix is standard hex
+        int len;
+        boolean isHex = false;
+        try {
+            len = Integer.parseInt(lenHex, 16);
+            isHex = true;
+        } catch (NumberFormatException e) {
+            len = -1;
+        }
+
+        if (isHex) {
+            recorder.write(lenBytes);
+            if (len == 0) {
+                // "0000" flush packet
                 return null;
             }
-            byte[] rest = in.readNBytes(3);
-            byte[] reassembled = new byte[4];
-            reassembled[0] = (byte) next;
-            System.arraycopy(rest, 0, reassembled, 1, rest.length);
-            lenHex = new String(reassembled, StandardCharsets.UTF_8);
-            lenBytes = reassembled;
+            if (len < 4) {
+                throw new IOException("Corrupted Git pkt-line length: " + len);
+            }
+
+            byte[] payload = in.readNBytes(len - 4);
+            if (payload.length < (len - 4)) {
+                throw new EOFException("Premature EOF reading Git pkt-line payload of len " + len);
+            }
+            recorder.write(payload);
+            return payload;
         }
 
-        recorder.write(lenBytes);
-
-        int len;
-        try {
-            len = Integer.parseInt(lenHex.trim(), 16);
-        } catch (NumberFormatException e) {
-            throw new IOException("Invalid Git pkt-line length prefix: '" + lenHex + "'", e);
+        // Fallback for manual test tools (like Postman sending un-prefixed lines or line without exact hex count):
+        // Read until newline \n
+        ByteArrayOutputStream lineBuf = new ByteArrayOutputStream();
+        lineBuf.write(lenBytes);
+        int b;
+        while ((b = in.read()) != -1) {
+            if (b == '\n') {
+                break;
+            }
+            lineBuf.write(b);
         }
+        byte[] lineBytes = lineBuf.toByteArray();
+        String lineStr = new String(lineBytes, StandardCharsets.UTF_8).trim();
 
-        if (len == 0) {
-            // "0000" flush packet
+        if (lineStr.isEmpty() || lineStr.equals("0000")) {
             return null;
         }
-        if (len < 4) {
-            throw new IOException("Corrupted Git pkt-line length: " + len);
-        }
 
-        byte[] payload = in.readNBytes(len - 4);
-        if (payload.length < (len - 4)) {
-            throw new EOFException("Premature EOF reading Git pkt-line payload of len " + len);
-        }
-        recorder.write(payload);
+        // Reconstruct proper pkt-line into recorder
+        int totalLen = lineBytes.length + 5; // +4 for hex prefix + 1 for newline
+        recorder.write(String.format("%04x", totalLen).getBytes(StandardCharsets.UTF_8));
+        recorder.write(lineBytes);
+        recorder.write('\n');
 
-        return payload;
+        return lineBytes;
     }
 }
