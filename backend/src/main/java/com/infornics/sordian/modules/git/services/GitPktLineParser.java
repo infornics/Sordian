@@ -119,32 +119,13 @@ public class GitPktLineParser {
                 throw new IOException("Corrupted Git pkt-line length: " + len);
             }
 
-            // Read the payload specified by hex length
+            // Read the exact payload specified by hex length
             byte[] payload = in.readNBytes(len - 4);
             if (payload.length < (len - 4)) {
                 throw new EOFException("Premature EOF reading Git pkt-line payload of len " + len);
             }
-
-            // If manual test entered a line longer than the hex prefix, read the rest of the line until \n
-            ByteArrayOutputStream completeLine = new ByteArrayOutputStream();
-            completeLine.write(payload);
-            String payloadStr = new String(payload, StandardCharsets.UTF_8);
-            if (!payloadStr.endsWith("\n") && !payloadStr.endsWith("\r")) {
-                int extra;
-                while ((extra = in.read()) != -1) {
-                    if (extra == '\n') {
-                        break;
-                    }
-                    if (extra == '\r') {
-                        continue;
-                    }
-                    completeLine.write(extra);
-                }
-            }
-
-            byte[] finalPayload = completeLine.toByteArray();
-            recorder.write(finalPayload);
-            return finalPayload;
+            recorder.write(payload);
+            return payload;
         }
 
         // Fallback for manual test tools (like Postman sending un-prefixed lines or line without exact hex count):
