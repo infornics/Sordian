@@ -13,12 +13,12 @@
     },
     {
       "key": "org",
-      "value": "infornics",
+      "value": "rachit-bharadwaj",
       "type": "string"
     },
     {
       "key": "repo",
-      "value": "Sordian",
+      "value": "delete-later",
       "type": "string"
     }
   ],
@@ -136,14 +136,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "00577a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b 0000000000000000000000000000000000000000 refs/heads/main\n0000"
+              "raw": "005e7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b 0000000000000000000000000000000000000000 refs/heads/delete-this\n0000"
             },
             "url": {
               "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/git-receive-pack",
               "host": ["{{localBaseUrl}}"],
               "path": ["{{org}}", "{{repo}}.git", "git-receive-pack"]
             },
-            "description": "Simulates 'git push origin --delete main'. Sordian intercepts the all-zeros new-oid, rejects the delete, and returns 'ng refs/heads/main [SORDIAN REJECTED] Branch deletion is denied by default...'."
+            "description": "Simulates 'git push origin --delete delete-this'. Sordian intercepts the all-zeros new-oid, rejects the delete, and returns 'ng refs/heads/delete-this [SORDIAN REJECTED] Branch deletion is denied by default...'."
           },
           "response": []
         },
@@ -163,14 +163,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "00571111111111111111111111111111111111111111 2222222222222222222222222222222222222222 refs/heads/feature\n0000"
+              "raw": "005e1111111111111111111111111111111111111111 2222222222222222222222222222222222222222 refs/heads/delete-this\n0000"
             },
             "url": {
               "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/git-receive-pack",
               "host": ["{{localBaseUrl}}"],
               "path": ["{{org}}", "{{repo}}.git", "git-receive-pack"]
             },
-            "description": "Simulates a force-push where the old commit is not an ancestor of the new commit. Sordian rejects with 'ng refs/heads/feature [SORDIAN REJECTED] Non-fast-forward updates are strictly prohibited.'."
+            "description": "Simulates a force-push on delete-this branch where the old commit is not an ancestor of the new commit. Sordian rejects with 'ng refs/heads/delete-this [SORDIAN REJECTED] Non-fast-forward updates are strictly prohibited.'."
           },
           "response": []
         }
