@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/{org}/{repo}.git")
+@RequiredArgsConstructor
 public class GitSmartHttpController {
 
     private static final Logger log = LoggerFactory.getLogger(GitSmartHttpController.class);
@@ -38,13 +40,6 @@ public class GitSmartHttpController {
 
     private final GitQuarantineService quarantineService;
     private final GitProcessRunner gitRunner;
-
-    public GitSmartHttpController(
-            GitQuarantineService quarantineService,
-            GitProcessRunner gitRunner) {
-        this.quarantineService = quarantineService;
-        this.gitRunner = gitRunner;
-    }
 
     /**
      * Git Smart HTTP ref advertisement for git-receive-pack.
