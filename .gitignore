@@ -1,0 +1,80 @@
+# ==========================================
+# Operating System & IDE Artifacts
+# ==========================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDEs & Editors
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+
+# ==========================================
+# Secrets, Environment & Keys (CRITICAL)
+# ==========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pkcs8
+*.p12
+*.crt
+
+# ==========================================
+# Java / Gradle Backend Artifacts
+# ==========================================
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+*.class
+*.jar
+*.war
+*.ear
+
+# ==========================================
+# Node.js / Next.js Frontend Artifacts
+# ==========================================
+node_modules/
+.pnp
+.pnp.js
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# ==========================================
+# Sordian Gateway Quarantine & Local Storage
+# ==========================================
+/quarantine/
+/tmp/sordian/
+/scratch/
+*.pack
+*.idx
+
+# ==========================================
+# Logs & Testing Artifacts
+# ==========================================
+*.log
+logs/
+playwright-report/
+test-results/
