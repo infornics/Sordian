@@ -1,4 +1,4 @@
-package com.infornics.sordian.modules.git.service;
+package com.infornics.sordian.modules.git.services;
 
 import java.io.File;
 import java.io.IOException;

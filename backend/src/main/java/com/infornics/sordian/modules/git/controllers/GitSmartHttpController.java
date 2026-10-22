@@ -1,7 +1,7 @@
-package com.infornics.sordian.modules.git.controller;
+package com.infornics.sordian.modules.git.controllers;
 
-import com.infornics.sordian.modules.git.service.GitProcessRunner;
-import com.infornics.sordian.modules.git.service.GitQuarantineService;
+import com.infornics.sordian.modules.git.services.GitProcessRunner;
+import com.infornics.sordian.modules.git.services.GitQuarantineService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.File;

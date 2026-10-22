@@ -1,4 +1,4 @@
-package com.infornics.sordian.modules.git.model;
+package com.infornics.sordian.modules.git.models;
 
 import lombok.Builder;
 import lombok.Value;

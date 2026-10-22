@@ -1,12 +1,12 @@
-package com.infornics.sordian.modules.git.controller;
+package com.infornics.sordian.modules.git.controllers;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.infornics.sordian.modules.git.service.GitProcessRunner;
-import com.infornics.sordian.modules.git.service.GitQuarantineService;
+import com.infornics.sordian.modules.git.services.GitProcessRunner;
+import com.infornics.sordian.modules.git.services.GitQuarantineService;
 import java.io.File;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

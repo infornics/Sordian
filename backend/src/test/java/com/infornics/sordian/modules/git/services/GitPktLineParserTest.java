@@ -1,8 +1,8 @@
-package com.infornics.sordian.modules.git.service;
+package com.infornics.sordian.modules.git.services;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.infornics.sordian.modules.git.model.RefCommand;
+import com.infornics.sordian.modules.git.models.RefCommand;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
