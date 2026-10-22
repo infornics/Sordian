@@ -124,9 +124,12 @@ public class GitSmartHttpController {
         com.infornics.sordian.modules.git.models.PushValidationResult validation =
                 inspectionService.validatePushCommands(repoDir, commands);
 
+        boolean sideband = parseResult.getClientCapabilities().contains("side-band-64k")
+                || parseResult.getClientCapabilities().contains("side-band");
+
         if (!validation.isAllowed()) {
             log.info("Push rejected for {}/{}: {}", org, repo, validation.getRejectionReason());
-            sendGitRejection(responseOut, validation, commands);
+            sendGitRejection(responseOut, validation, commands, sideband);
             responseOut.flush();
             return;
         }
@@ -169,18 +172,18 @@ public class GitSmartHttpController {
                 upstreamForwarder.forwardRefs(repoDir, org, repo, commands);
 
         if (forwardResult.isSuccess()) {
-            writePktLine(responseOut, "unpack ok\n");
+            writeStatusLine(responseOut, "unpack ok\n", sideband);
             for (com.infornics.sordian.modules.git.models.RefCommand cmd : commands) {
-                writePktLine(responseOut, "ok " + cmd.getRefName() + "\n");
+                writeStatusLine(responseOut, "ok " + cmd.getRefName() + "\n", sideband);
             }
             writePktFlush(responseOut);
             log.info("Successfully received, verified, and forwarded push for {}/{}", org, repo);
         } else {
             log.warn("Upstream forwarding failed for {}/{}: {}", org, repo, forwardResult.getStandardError());
-            writePktLine(responseOut, "unpack ok\n");
+            writeStatusLine(responseOut, "unpack ok\n", sideband);
             for (com.infornics.sordian.modules.git.models.RefCommand cmd : commands) {
-                writePktLine(responseOut, "ng " + cmd.getRefName() + " [SORDIAN UPSTREAM ERROR] " +
-                        (forwardResult.getStandardError().isBlank() ? "Failed to forward to GitHub" : forwardResult.getStandardError().trim()) + "\n");
+                writeStatusLine(responseOut, "ng " + cmd.getRefName() + " [SORDIAN UPSTREAM ERROR] " +
+                        (forwardResult.getStandardError().isBlank() ? "Failed to forward to GitHub" : forwardResult.getStandardError().trim()) + "\n", sideband);
             }
             writePktFlush(responseOut);
         }
@@ -191,20 +194,36 @@ public class GitSmartHttpController {
     private void sendGitRejection(
             OutputStream out,
             com.infornics.sordian.modules.git.models.PushValidationResult validation,
-            List<com.infornics.sordian.modules.git.models.RefCommand> commands) throws IOException {
+            List<com.infornics.sordian.modules.git.models.RefCommand> commands,
+            boolean sideband) throws IOException {
 
         // Report status to Git client according to Git receive-pack wire protocol
         // 1. Unpack status
-        writePktLine(out, "unpack ok\n");
+        writeStatusLine(out, "unpack ok\n", sideband);
 
         // 2. NG per ref status
         for (com.infornics.sordian.modules.git.models.RefCommand cmd : commands) {
             String errorMsg = validation.getRejectionReason();
-            writePktLine(out, "ng " + cmd.getRefName() + " [SORDIAN REJECTED] " + errorMsg + "\n");
+            writeStatusLine(out, "ng " + cmd.getRefName() + " [SORDIAN REJECTED] " + errorMsg + "\n", sideband);
         }
 
         // 3. Flush packet to conclude report-status
         writePktFlush(out);
+    }
+
+    private void writeStatusLine(OutputStream out, String text, boolean sideband) throws IOException {
+        byte[] payload = text.getBytes(StandardCharsets.UTF_8);
+        if (sideband) {
+            // In side-band framing, channel 1 (0x01) is primary pack data/report status
+            // Total length = 4 (hex prefix) + 1 (band byte) + payload length
+            int len = 4 + 1 + payload.length;
+            String hexLen = String.format("%04x", len);
+            out.write(hexLen.getBytes(StandardCharsets.UTF_8));
+            out.write(1); // Band #1
+            out.write(payload);
+        } else {
+            writePktLine(out, text);
+        }
     }
 
     private void writePktLine(OutputStream out, String text) throws IOException {
