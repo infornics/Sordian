@@ -42,6 +42,7 @@ public class GitSmartHttpController {
     private final GitProcessRunner gitRunner;
     private final com.infornics.sordian.modules.git.services.GitPktLineParser pktLineParser;
     private final com.infornics.sordian.modules.git.services.GitInspectionService inspectionService;
+    private final com.infornics.sordian.modules.git.services.GitUpstreamForwarderService upstreamForwarder;
 
     /**
      * Git Smart HTTP ref advertisement for git-receive-pack.
@@ -142,16 +143,49 @@ public class GitSmartHttpController {
                 repoDir.getAbsolutePath()
         );
 
+        // Capture local receive-pack output to verify unpack
+        java.io.ByteArrayOutputStream localReceiveOut = new java.io.ByteArrayOutputStream();
         int exitCode = gitRunner.execute(
                 repoDir,
                 commandArgs,
                 Map.of(),
                 combinedIn,
-                responseOut
+                localReceiveOut
         );
 
+        if (exitCode != 0) {
+            log.error("Local quarantine receive-pack failed for {}/{} with exit {}", org, repo, exitCode);
+            writePktLine(responseOut, "unpack error unpack-failed\n");
+            for (com.infornics.sordian.modules.git.models.RefCommand cmd : commands) {
+                writePktLine(responseOut, "ng " + cmd.getRefName() + " unpack failed\n");
+            }
+            writePktFlush(responseOut);
+            responseOut.flush();
+            return;
+        }
+
+        // Step 1.4: Forward approved ref updates to upstream GitHub
+        com.infornics.sordian.modules.git.models.UpstreamForwardResult forwardResult =
+                upstreamForwarder.forwardRefs(repoDir, org, repo, commands);
+
+        if (forwardResult.isSuccess()) {
+            writePktLine(responseOut, "unpack ok\n");
+            for (com.infornics.sordian.modules.git.models.RefCommand cmd : commands) {
+                writePktLine(responseOut, "ok " + cmd.getRefName() + "\n");
+            }
+            writePktFlush(responseOut);
+            log.info("Successfully received, verified, and forwarded push for {}/{}", org, repo);
+        } else {
+            log.warn("Upstream forwarding failed for {}/{}: {}", org, repo, forwardResult.getStandardError());
+            writePktLine(responseOut, "unpack ok\n");
+            for (com.infornics.sordian.modules.git.models.RefCommand cmd : commands) {
+                writePktLine(responseOut, "ng " + cmd.getRefName() + " [SORDIAN UPSTREAM ERROR] " +
+                        (forwardResult.getStandardError().isBlank() ? "Failed to forward to GitHub" : forwardResult.getStandardError().trim()) + "\n");
+            }
+            writePktFlush(responseOut);
+        }
+
         responseOut.flush();
-        log.debug("Completed git-receive-pack for {}/{} with exit code {}", org, repo, exitCode);
     }
 
     private void sendGitRejection(

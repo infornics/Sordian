@@ -22,15 +22,25 @@ public class GitProcessRunner {
     private static final Logger log = LoggerFactory.getLogger(GitProcessRunner.class);
     private static final int PROCESS_TIMEOUT_SECONDS = 60;
 
-    /**
-     * Spawns a Git process, connects streams, and waits for completion.
-     */
     public int execute(
             File workingDirectory,
             List<String> commandArgs,
             Map<String, String> extraEnv,
             InputStream stdin,
             OutputStream stdout) throws IOException, InterruptedException {
+        return execute(workingDirectory, commandArgs, extraEnv, stdin, stdout, null);
+    }
+
+    /**
+     * Spawns a Git process, connects stdin, stdout, and stderr streams, and waits for completion.
+     */
+    public int execute(
+            File workingDirectory,
+            List<String> commandArgs,
+            Map<String, String> extraEnv,
+            InputStream stdin,
+            OutputStream stdout,
+            OutputStream stderr) throws IOException, InterruptedException {
 
         List<String> fullCommand = new java.util.ArrayList<>();
         fullCommand.add("git");
@@ -62,6 +72,19 @@ public class GitProcessRunner {
             });
         }
 
+        // Pipe process stderr if caller provided stderr OutputStream
+        Thread stderrThread = null;
+        if (stderr != null) {
+            stderrThread = Thread.ofVirtual().start(() -> {
+                try (InputStream processErr = process.getErrorStream()) {
+                    processErr.transferTo(stderr);
+                    stderr.flush();
+                } catch (IOException e) {
+                    log.trace("Stderr pipe closed: {}", e.getMessage());
+                }
+            });
+        }
+
         // Pipe process stdout to caller stdout
         try (InputStream processOut = process.getInputStream()) {
             processOut.transferTo(stdout);
@@ -71,6 +94,9 @@ public class GitProcessRunner {
         if (stdinThread != null) {
             stdinThread.join(TimeUnit.SECONDS.toMillis(PROCESS_TIMEOUT_SECONDS));
         }
+        if (stderrThread != null) {
+            stderrThread.join(TimeUnit.SECONDS.toMillis(PROCESS_TIMEOUT_SECONDS));
+        }
 
         boolean finished = process.waitFor(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         if (!finished) {
@@ -79,9 +105,9 @@ public class GitProcessRunner {
         }
 
         int exitCode = process.exitValue();
-        if (exitCode != 0) {
-            String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
-            log.warn("Git process exited with code {}: {}", exitCode, stderr);
+        if (exitCode != 0 && stderr == null) {
+            String err = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+            log.warn("Git process exited with code {}: {}", exitCode, err);
         }
 
         return exitCode;

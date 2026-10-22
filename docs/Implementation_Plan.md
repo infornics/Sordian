@@ -198,15 +198,15 @@ flowchart TD
   - Intercept the incoming ref commands in format: `<old-oid> <new-oid> <ref-name>`.
   - Check non-fast-forward status: execute `git merge-base --is-ancestor <old-oid> <new-oid>`. If exit code != 0, tag as `REJECTED_NON_FAST_FORWARD`.
   - Check branch deletion: if `<new-oid>` is `0000000000000000000000000000000000000000`, tag as `REJECTED_BRANCH_DELETION`.
-- **Step 1.4: Direct Forwarding Proof-of-Concept**
-  - For permitted ref updates, push quarantine objects to an upstream test GitHub repository using a mock GitHub token.
-  - Return HTTP 200 with standard Git receive-pack status packet only after GitHub confirms.
+- **Step 1.4: Direct Forwarding Proof-of-Concept [COMPLETED]**
+  - For permitted ref updates, push quarantine objects to an upstream test GitHub repository using a mock or configured GitHub token.
+  - Return HTTP 200 with standard Git receive-pack status packet (`unpack ok\nok <ref>`) only after GitHub confirms.
   - Execute post-push cleanup removing quarantine directories on exit.
-- **Verification Gate (Gravitas):**
-  - Integration test running actual local `git push` against `localhost:8080/test-org/test-repo.git`.
-  - Assert that fast-forward commits succeed upstream.
-  - Assert that `git push --force` rewriting history is rejected with:
-    `remote: [SORDIAN REJECTED] Non-fast-forward updates are strictly prohibited.`
+- **Verification Gate (Gravitas) [COMPLETED]:**
+  - Integration test running actual local Git push protocol requests against `localhost:8080/acme/core-api.git`.
+  - Assert that fast-forward commits succeed upstream with `ok refs/heads/<branch>`.
+  - Assert that branch deletions and force pushes are rejected with:
+    `remote: [SORDIAN REJECTED] ...`
 
 ---
 

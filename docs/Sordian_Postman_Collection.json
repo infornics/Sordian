@@ -173,6 +173,33 @@
             "description": "Simulates a force-push on delete-this branch where the old commit is not an ancestor of the new commit. Sordian rejects with 'ng refs/heads/delete-this [SORDIAN REJECTED] Non-fast-forward updates are strictly prohibited.'."
           },
           "response": []
+        },
+        {
+          "name": "03 - Forward Approved Fast-Forward Push to Upstream",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-git-receive-pack-request"
+              },
+              {
+                "key": "Accept",
+                "value": "application/x-git-receive-pack-result"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "005e1111111111111111111111111111111111111111 2222222222222222222222222222222222222222 refs/heads/delete-this\n0000"
+            },
+            "url": {
+              "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/git-receive-pack",
+              "host": ["{{localBaseUrl}}"],
+              "path": ["{{org}}", "{{repo}}.git", "git-receive-pack"]
+            },
+            "description": "Step 1.4: Sends a permitted ref update. Sordian verifies policy, writes packfile to quarantine, forwards objects to upstream GitHub repo, and replies with 'unpack ok\\nok refs/heads/delete-this\\n0000'."
+          },
+          "response": []
         }
       ]
     }

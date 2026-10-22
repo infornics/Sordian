@@ -34,6 +34,9 @@ class GitSmartHttpControllerTest {
     @MockBean
     private com.infornics.sordian.modules.git.services.GitInspectionService inspectionService;
 
+    @MockBean
+    private com.infornics.sordian.modules.git.services.GitUpstreamForwarderService upstreamForwarder;
+
     @Test
     @DisplayName("Should return 403 Forbidden when service is not git-receive-pack (e.g. clone/fetch attempts)")
     void shouldRejectNonReceivePackServices() throws Exception {
@@ -96,5 +99,51 @@ class GitSmartHttpControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("unpack ok")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("ng refs/heads/main [SORDIAN REJECTED] Branch deletion is denied by default.")));
+    }
+
+    @Test
+    @DisplayName("Should return ok when push passes inspection and successfully forwards to upstream")
+    void shouldReturnOkWhenPushSuccessfullyForwardsUpstream() throws Exception {
+        File dummyRepo = File.createTempFile("sordian-test-forward", ".git");
+        dummyRepo.delete();
+        dummyRepo.mkdirs();
+        dummyRepo.deleteOnExit();
+
+        Mockito.when(quarantineService.getOrCreateQuarantineRepo("acme", "core-api"))
+                .thenReturn(dummyRepo);
+
+        com.infornics.sordian.modules.git.models.RefCommand cmd =
+                com.infornics.sordian.modules.git.models.RefCommand.builder()
+                        .oldOid("1111111111111111111111111111111111111111")
+                        .newOid("2222222222222222222222222222222222222222")
+                        .refName("refs/heads/delete-this")
+                        .build();
+
+        Mockito.when(pktLineParser.parsePushCommands(Mockito.any()))
+                .thenReturn(new com.infornics.sordian.modules.git.services.GitPktLineParser.ParseResult(
+                        java.util.List.of(cmd),
+                        new byte[0],
+                        java.util.List.of()
+                ));
+
+        Mockito.when(inspectionService.validatePushCommands(Mockito.any(), Mockito.any()))
+                .thenReturn(com.infornics.sordian.modules.git.models.PushValidationResult.allow());
+
+        Mockito.when(gitRunner.execute(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenReturn(0);
+
+        Mockito.when(upstreamForwarder.forwardRefs(Mockito.any(), Mockito.eq("acme"), Mockito.eq("core-api"), Mockito.any()))
+                .thenReturn(com.infornics.sordian.modules.git.models.UpstreamForwardResult.builder()
+                        .success(true)
+                        .exitCode(0)
+                        .upstreamUrl("https://github.com/acme/core-api.git")
+                        .build());
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/acme/core-api.git/git-receive-pack")
+                        .contentType("application/x-git-receive-pack-request")
+                        .content("0000"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("unpack ok")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("ok refs/heads/delete-this")));
     }
 }
