@@ -190,14 +190,14 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "005e1111111111111111111111111111111111111111 2222222222222222222222222222222222222222 refs/heads/delete-this\n0000"
+              "raw": "005e0000000000000000000000000000000000000000 2222222222222222222222222222222222222222 refs/heads/delete-this\n0000"
             },
             "url": {
               "raw": "{{localBaseUrl}}/{{org}}/{{repo}}.git/git-receive-pack",
               "host": ["{{localBaseUrl}}"],
               "path": ["{{org}}", "{{repo}}.git", "git-receive-pack"]
             },
-            "description": "Step 1.4: Sends a permitted ref update. Sordian verifies policy, writes packfile to quarantine, forwards objects to upstream GitHub repo, and replies with 'unpack ok\\nok refs/heads/delete-this\\n0000'."
+            "description": "Step 1.4: Sends a permitted ref update (new branch creation where old-oid is all zeros). Sordian verifies policy, receives packfile into quarantine, forwards to upstream GitHub repo, and replies with 'unpack ok\\nok refs/heads/delete-this\\n0000'."
           },
           "response": []
         }
